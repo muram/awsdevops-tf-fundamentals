@@ -1,91 +1,119 @@
 // AWS provider configuration
 provider "aws" {
-  region                  = var.aws_region
+  region                  = var.aws_region_1
   shared_credentials_file = var.shared_credentials_file
-  profile                 = var.aws_profile
+  profile                 = var.aws_profile_1
 }
 
+provider "aws" {
+  alias                   = "region_2"
+  region                  = var.aws_region_2
+  shared_credentials_file = var.shared_credentials_file
+  profile                 = var.aws_profile_2
+}
 
-// NodeJS instance resource
-resource "aws_instance" "nodejs_instance" {
-  ami           = data.aws_ssm_parameter.amzn2_ami.value
-  instance_type = "t2.micro"
-  key_name      = var.key_name
-  tags = {
-    Name    = "${var.project_name}-nodejs"
-    Project = var.project_name
-    Owner   = var.project_owner
+// Generate some random results for instance module
+resource "random_string" "random_1" {
+  length  = 8
+  special = false
+}
+
+resource "random_string" "random_2" {
+  length  = 8
+  special = false
+}
+
+// Modules
+module "nodejs_instance_1" {
+  source         = "./modules/instance"
+  instance_name  = "${var.project_name}-nodejs-${random_string.random_1.result}"
+  key_name       = var.key_name
+  instance_type  = var.instance_type
+  allow_ssh      = var.allow_ssh
+  ssh_cidr_block = var.ssh_cidr_block
+  project_name   = var.project_name
+  project_owner  = var.project_owner
+}
+
+module "nodejs_instance_2" {
+  source = "./modules/instance"
+  providers = {
+    aws = aws.region_2
   }
-
-  vpc_security_group_ids = [aws_security_group.nodejs_sg.id]
-  iam_instance_profile   = aws_iam_instance_profile.instance_profile.name
-
-  user_data = templatefile("${path.module}/userdata.sh", {
-    aws_region     = data.aws_region.current.name
-    log_group_name = aws_cloudwatch_log_group.cw_log_group.name
-  })
+  instance_name  = "${var.project_name}-nodejs-${random_string.random_2.result}"
+  key_name       = var.key_name
+  instance_type  = var.instance_type
+  allow_ssh      = var.allow_ssh
+  ssh_cidr_block = var.ssh_cidr_block
+  project_name   = var.project_name
+  project_owner  = var.project_owner
 }
 
-
-// Instance security group and allow rules resources
-resource "aws_security_group" "nodejs_sg" {
-  description = "Allow HTTP and SSH Access for NodeJS"
-  name_prefix = "${var.project_name}-nodejs-sg"
-  tags = {
-    Name    = "${var.project_name}-nodejs-sg"
-    Project = var.project_name
-    Owner   = var.project_owner
-  }
+// Variables
+variable aws_region_1 {
+  description = "AWS target region 1"
+  type        = string
 }
 
-resource "aws_security_group_rule" "allow_http" {
-  type              = "ingress"
-  from_port         = 80
-  to_port           = 80
-  protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.nodejs_sg.id
+variable aws_region_2 {
+  description = "AWS target region 2"
+  type        = string
 }
 
-resource "aws_security_group_rule" "allow_ssh" {
-  count             = var.allow_ssh == true ? 1 : 0
-  type              = "ingress"
-  from_port         = 22
-  to_port           = 22
-  protocol          = "tcp"
-  cidr_blocks       = ["${var.ssh_cidr_block}"]
-  security_group_id = aws_security_group.nodejs_sg.id
+variable shared_credentials_file {
+  description = "Local path for the AWS credentials file"
+  type        = string
 }
 
-resource "aws_security_group_rule" "allow_all_egress" {
-  type              = "egress"
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.nodejs_sg.id
+variable aws_profile_1 {
+  description = "AWS target profile 1"
+  type        = string
 }
 
-
-// CloudWatch logs resource
-resource "aws_cloudwatch_log_group" "cw_log_group" {
-  name              = "${var.project_name}-nodejs-logs"
-  retention_in_days = 7
+variable aws_profile_2 {
+  description = "AWS target profile 2"
+  type        = string
 }
 
-
-// IAM resources
-resource "aws_iam_role" "cw_log_iam_role" {
-  name_prefix        = "${var.project_name}-nodejs-cloudwatch"
-  assume_role_policy = data.aws_iam_policy_document.cw_log_iam_trust_policy.json
+variable key_name {
 }
 
-resource "aws_iam_role_policy" "attach_cw_log_iam_policy_to_role" {
-  policy = data.aws_iam_policy_document.cw_log_permissions_policy.json
-  role   = aws_iam_role.cw_log_iam_role.id
+variable project_name {
 }
 
-resource "aws_iam_instance_profile" "instance_profile" {
-  role = aws_iam_role.cw_log_iam_role.name
+variable project_owner {
 }
 
+variable instance_type {
+}
+
+variable allow_ssh {
+}
+
+variable "ssh_cidr_block" {
+}
+
+// Outputs
+output instance_1_id {
+  value = module.nodejs_instance_1.instance_id
+}
+
+output instance_1_public_ipv4 {
+  value = module.nodejs_instance_1.instance_public_ipv4
+}
+
+output instance_1_public_dns {
+  value = module.nodejs_instance_1.instance_public_dns
+}
+
+output instance_2_id {
+  value = module.nodejs_instance_2.instance_id
+}
+
+output instance_2_public_ipv4 {
+  value = module.nodejs_instance_2.instance_public_ipv4
+}
+
+output instance_2_public_dns {
+  value = module.nodejs_instance_2.instance_public_dns
+}

@@ -6,11 +6,6 @@ data "aws_caller_identity" "current" {}
 /* Setup to get the REGION of the provided...provider */
 data "aws_region" "current" {}
 
-/*Setup to get the latest Amazon2 AMI */
-data "aws_ssm_parameter" "amzn2_ami" {
-  name = "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
-}
-
 /* IAM policy documents */
 data "aws_iam_policy_document" "cw_log_iam_trust_policy" {
   statement {
@@ -30,7 +25,6 @@ data "aws_iam_policy_document" "cw_log_permissions_policy" {
     actions = [
       "logs:CreateLogGroup"
     ]
-
     resources = ["arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"]
   }
 
@@ -43,6 +37,6 @@ data "aws_iam_policy_document" "cw_log_permissions_policy" {
       "logs:DescribeLogStreams",
       "logs:PutLogEvents"
     ]
-    resources = [aws_cloudwatch_log_group.cw_log_group.arn]
+    resources = [var.cw_log_group_arn]
   }
 }
